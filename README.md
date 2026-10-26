@@ -15,7 +15,7 @@ The day file uploads first, so the index never names a missing file. A run whose
 
 There is no database or server. The app only reads public URLs. The R2 write key exists only in this repo's `r2` environment.
 
-The job skips until `PRICE_LOG_URL` is set. Each run also re-enables the workflow, because GitHub disables a public repo's schedules after 60 days without commits.
+After each successful run, the job re-enables the workflow, because GitHub disables a public repo's schedules after 60 days without commits.
 
 Why Actions rather than a Cloudflare Worker cron: the job is plain Python with no dependencies, and Actions is free for public repos. On the free plan a Worker gets 10 ms of CPU per run, and parsing 14 groups of price JSON is likely over that (not measured). Workers Paid ($5/month) would lift the limit, but the job would need porting to JavaScript.
 
@@ -39,8 +39,8 @@ Why Actions rather than a Cloudflare Worker cron: the job is plain Python with n
    - Copy the Access Key ID and the Secret Access Key. Cloudflare shows the secret only once.
    - Note the **Account ID** from the R2 overview page.
 5. **GitHub.** In this repo, go to Settings > Environments > **r2**. The environment already exists, and only `main` can use it.
-   - Environment secrets: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Put them in the environment, not under repository secrets, so only `main` can read them.
-   - Then go to Settings > Secrets and variables > Actions > Variables, and add the repository variables `R2_BUCKET` (for example `riftbound-prices`) and `PRICE_LOG_URL` (the public URL, no trailing slash).
+   - Environment secrets: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Put them here, not under repository secrets, so only `main` can read them.
+   - Environment variables: `R2_BUCKET` (for example `riftbound-prices`) and `PRICE_LOG_URL` (the public URL).
 
 ## Deploy
 

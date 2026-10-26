@@ -9,11 +9,9 @@ concurrency: price-log
 permissions: {}
 jobs:
   log:
-    # Skips until the bucket is set up (README), so an unconfigured repo doesn't fail daily.
-    if: vars.PRICE_LOG_URL != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The R2 secrets live in this environment, which only main can deploy to.
+    # The R2 secrets and variables live in this environment, which only main can deploy to.
     environment: r2
     permissions:
       contents: read
@@ -33,7 +31,7 @@ jobs:
   keepalive:
     # GitHub disables a public repo's schedules after 60 days without commits, and this job commits nothing. Its own job,
     # so the step holding the R2 key never holds a token that can change workflows.
-    if: vars.PRICE_LOG_URL != ''
+    needs: log
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
