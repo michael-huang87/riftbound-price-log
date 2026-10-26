@@ -1,0 +1,30 @@
+# The daily price log (price-log.py publish), uploaded to the public R2 bucket the app reads. TCGCSV refreshes around
+# 20:00 UTC; the later runs retry a late or failed one, and a run whose day is published writes nothing.
+name: Price log
+on:
+  schedule:
+    - cron: "17 21,23,3 * * *"
+  workflow_dispatch:
+concurrency: price-log
+permissions:
+  contents: read
+  actions: write  # the keepalive step
+jobs:
+  log:
+    # Skips until the bucket is set up (README), so an unconfigured repo doesn't fail daily.
+    if: vars.PRICE_LOG_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 price-log.py publish out "${{ vars.PRICE_LOG_URL }}"
+      - run: ./upload.sh out
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      # GitHub disables a public repo's schedules after 60 days without commits, and this job commits nothing.
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/price-log.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
