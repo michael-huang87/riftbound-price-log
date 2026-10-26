@@ -46,8 +46,9 @@ def fetch(groups):
 
 def published(url):
     """The days already in the bucket. The query string skips a cached copy, so a stale index never drops a day."""
+    # A trailing slash would ask for "//days.json", miss, and read as an empty bucket: the new index would drop every day.
     try:
-        return json.loads(get(f"{url}/days.json?{int(time.time())}"))
+        return json.loads(get(f"{url.rstrip('/')}/days.json?{int(time.time())}"))
     except urllib.error.HTTPError as e:
         if e.code == 404:  # an empty bucket
             return []
