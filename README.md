@@ -13,7 +13,7 @@ A daily log of Riftbound card prices from [TCGCSV](https://tcgcsv.com) (TCGplaye
 
 The day file uploads first, so the index never names a missing file. A run whose day is already in the bucket uploads nothing.
 
-There is no database or server. The app only reads public URLs. The R2 write key exists only in this repo's Actions secrets.
+There is no database or server. The app only reads public URLs. The R2 write key exists only in this repo's `r2` environment.
 
 The job skips until `PRICE_LOG_URL` is set. Each run also re-enables the workflow, because GitHub disables a public repo's schedules after 60 days without commits.
 
@@ -32,21 +32,38 @@ Why Actions rather than a Cloudflare Worker cron: the job is plain Python with n
    - Permission: **Object Read & Write**, scoped to this bucket only.
    - Copy the Access Key ID and the Secret Access Key. Cloudflare shows the secret only once.
    - Note the **Account ID** from the R2 overview page.
-5. **GitHub.** In this repo, go to Settings > Secrets and variables > Actions.
-   - Secrets: `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
-   - Variables: `R2_ACCOUNT_ID`, `R2_BUCKET` (for example `riftbound-prices`), `PRICE_LOG_URL` (the public URL, no trailing slash).
+5. **GitHub.** In this repo, go to Settings > Environments > **r2**. The environment already exists, and only `main` can use it.
+   - Environment secrets: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Put them in the environment, not under repository secrets, so only `main` can read them.
+   - Then go to Settings > Secrets and variables > Actions > Variables, and add the repository variables `R2_BUCKET` (for example `riftbound-prices`) and `PRICE_LOG_URL` (the public URL, no trailing slash).
 
 ## Deploy
 
 1. **Backfill**, on Michael's Mac. The original log is in `~/Library/Application Support/riftbound-price-log/prices.db`.
    1. Copy it somewhere safe first.
-   2. Export the five values from step 5.
+   2. Export the five values from step 5 (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `PRICE_LOG_URL`).
    3. Run `./backfill.sh /tmp/price-log "$PRICE_LOG_URL"`. It writes every logged day, merged with any days already in the bucket, then uploads them. Without the URL, it is a dry run that only writes `/tmp/price-log`.
 2. **Check the bucket.**
    - `curl "$PRICE_LOG_URL/days.json"` lists the days.
    - `curl -sI "$PRICE_LOG_URL/days/2026-10-23.json"` returns 200 with `content-type: application/json`.
 3. **Run the job once.** Go to Actions > Price log > Run workflow. The log shows `wrote out/days/<day>.json` or `<day> published, skipping`. After that, it runs on its schedule.
 4. **Point the app at it.** Set `PriceLogURL` in the app's `Riftbound-Info.plist` to the public URL, then ship a build.
+
+## Security
+
+This repo is public, so anyone can read the code, the workflow and its run logs.
+
+- **What protects the write key:**
+  - The R2 key is an environment secret in `r2`, and only `main` can deploy to that environment. Forks, pull requests and other branches can't read it.
+  - GitHub masks secrets in logs, and the scripts never print them.
+- **Limits on the token and workflows:**
+  - The workflow's token defaults to no permissions. The upload job gets `contents: read`. Only the separate keepalive job gets `actions: write`.
+  - Only GitHub-owned actions can run, pinned to a commit SHA.
+  - Pull requests from outside collaborators need approval before any workflow runs.
+  - `main` rejects force pushes and deletion.
+  - Secret scanning and push protection are on.
+- **The R2 token:** give it Object Read & Write on the one bucket only. If it leaks, someone can overwrite or delete price files, but nothing else in the Cloudflare account.
+  - To rotate it: create a new token, update the two key secrets, then delete the old token.
+- **Input checks:** `price-log.py` checks the day from TCGCSV before using it as a file name and bucket key.
 
 ## Monthly cost
 

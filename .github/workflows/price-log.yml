@@ -6,25 +6,39 @@ on:
     - cron: "17 21,23,3 * * *"
   workflow_dispatch:
 concurrency: price-log
-permissions:
-  contents: read
-  actions: write  # the keepalive step
+permissions: {}
 jobs:
   log:
     # Skips until the bucket is set up (README), so an unconfigured repo doesn't fail daily.
     if: vars.PRICE_LOG_URL != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The R2 secrets live in this environment, which only main can deploy to.
+    environment: r2
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - run: python3 price-log.py publish out "${{ vars.PRICE_LOG_URL }}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 price-log.py publish out "$PRICE_LOG_URL"
+        env:
+          PRICE_LOG_URL: ${{ vars.PRICE_LOG_URL }}
       - run: ./upload.sh out
         env:
-          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ vars.R2_BUCKET }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      # GitHub disables a public repo's schedules after 60 days without commits, and this job commits nothing.
-      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/price-log.yml/enable"
+  keepalive:
+    # GitHub disables a public repo's schedules after 60 days without commits, and this job commits nothing. Its own job,
+    # so the step holding the R2 key never holds a token that can change workflows.
+    if: vars.PRICE_LOG_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/price-log.yml/enable"
         env:
           GH_TOKEN: ${{ github.token }}

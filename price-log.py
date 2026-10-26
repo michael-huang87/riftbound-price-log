@@ -9,7 +9,7 @@
   price-log.py export <dir> <prices.db> [<url>]
       Writes every day in the Mac's original price log the same way, for backfill.sh.
 """
-import json, os, sqlite3, sys, time, urllib.error, urllib.request
+import json, os, re, sqlite3, sys, time, urllib.error, urllib.request
 
 USER_AGENT = "riftbound-price-log/1.0 (+https://github.com/michael-huang87/riftbound-price-log)"
 
@@ -24,6 +24,9 @@ def today():
     """TCGCSV's groups and the UTC day it last refreshed the prices. Not the groups file's Last-Modified: that moves
     only when a set is added, and the prices refresh daily under it."""
     day = get("https://tcgcsv.com/last-updated.txt").decode()[:10]  # "2026-10-25T20:05:50+0000"
+    # The day names a file and a bucket key: never let a malformed response write outside days/.
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        sys.exit(f"unexpected last-updated.txt: {day!r}")
     return json.loads(get("https://tcgcsv.com/tcgplayer/89/groups"))["results"], day
 
 
