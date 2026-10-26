@@ -27,7 +27,13 @@ Why Actions rather than a Cloudflare Worker cron: the job is plain Python with n
    - **Custom domain (recommended).** Under Custom Domains, select Connect a domain, for example `prices.<your domain>`. The domain must be on Cloudflare. Responses are cached at Cloudflare's edge.
    - **Public development URL.** Select Allow to get `https://pub-<id>.r2.dev`. It works, but Cloudflare rate-limits it and says it is not for production.
 
-   The resulting `https://` URL is the **public URL**.
+   The resulting `https://` URL is the **public URL**. For RiftTally it is `https://prices.rifttally.com`.
+
+   With a custom domain, also add a cache rule. Cloudflare doesn't cache `.json` files by default, so without one every app launch reads from R2. In the domain's dashboard, go to Caching > Cache Rules > Create rule:
+   - When: hostname equals `prices.rifttally.com`.
+   - Then: Eligible for cache, with Edge TTL set to use the cache-control header if present.
+
+   This makes Cloudflare honor `upload.sh`'s headers: a day file is cached for a year, the index for five minutes. The job's query string still skips the cache when it reads the index.
 4. **API token.** Go to R2 > Manage API tokens > Create API token.
    - Permission: **Object Read & Write**, scoped to this bucket only.
    - Copy the Access Key ID and the Secret Access Key. Cloudflare shows the secret only once.
